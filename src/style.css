@@ -1,0 +1,98 @@
+:root{
+  --bg:#0b1020;
+  --panel:#121a33;
+  --muted:#93a4c7;
+  --text:#e8eeff;
+  --accent:#22d3ee;
+  --danger:#fb7185;
+  --ok:#34d399;
+  --border:rgba(255,255,255,.10);
+  --shadow: 0 10px 30px rgba(0,0,0,.35);
+  --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  --sans: -apple-system, system-ui, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+}
+
+*{box-sizing:border-box}
+html,body{height:100%}
+body{
+  margin:0;
+  font-family:var(--sans);
+  background: radial-gradient(1200px 600px at 20% 0%, rgba(34,211,238,.18), transparent 60%),
+              radial-gradient(900px 500px at 85% 20%, rgba(59,130,246,.18), transparent 55%),
+              var(--bg);
+  color:var(--text);
+}
+
+a{color:inherit}
+
+.container{max-width:1100px;margin:0 auto;padding:24px}
+
+.header{
+  display:flex;align-items:center;justify-content:space-between;gap:16px;
+  padding:18px 24px;border:1px solid var(--border);border-radius:14px;background:rgba(18,26,51,.65);
+  backdrop-filter: blur(10px);
+  box-shadow: var(--shadow);
+}
+.brand{display:flex;flex-direction:column;gap:2px}
+.brand h1{font-size:18px;margin:0;letter-spacing:.2px}
+.brand p{margin:0;color:var(--muted);font-size:13px}
+
+.badges{display:flex;gap:10px;flex-wrap:wrap;justify-content:flex-end}
+.badge{
+  font-family:var(--mono);font-size:12px;color:var(--muted);
+  border:1px solid var(--border);border-radius:999px;padding:6px 10px;
+  background:rgba(0,0,0,.2);
+}
+.badge strong{color:var(--text);font-weight:600}
+
+.grid{display:grid;grid-template-columns:1.2fr .8fr;gap:18px;margin-top:18px}
+@media (max-width: 960px){.grid{grid-template-columns:1fr}}
+
+.panel{
+  border:1px solid var(--border);
+  border-radius:14px;
+  background:rgba(18,26,51,.60);
+  box-shadow: var(--shadow);
+  overflow:hidden;
+}
+.panel .panel-h{padding:14px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:12px}
+.panel .panel-h h2{margin:0;font-size:14px;letter-spacing:.2px}
+.panel .panel-b{padding:16px}
+
+.kbd{font-family:var(--mono);font-size:12px;border:1px solid var(--border);padding:2px 6px;border-radius:6px;color:var(--muted)}
+
+.btn{
+  appearance:none;border:1px solid var(--border);background:rgba(0,0,0,.18);
+  color:var(--text);padding:10px 12px;border-radius:12px;cursor:pointer;
+  font-weight:600;letter-spacing:.2px;
+}
+.btn:hover{border-color:rgba(34,211,238,.45)}
+.btn.primary{background:linear-gradient(135deg, rgba(34,211,238,.18), rgba(59,130,246,.18));border-color:rgba(34,211,238,.35)}
+.btn.danger{border-color:rgba(251,113,133,.55)}
+
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+
+.label{font-size:12px;color:var(--muted);margin-bottom:6px}
+
+input,select{
+  width:100%;padding:10px 12px;border-radius:12px;border:1px solid var(--border);
+  background:rgba(0,0,0,.18);color:var(--text);
+}
+
+.small{font-size:12px;color:var(--muted);line-height:1.4}
+
+.bigPrompt{font-size:18px;line-height:1.35;margin:0 0 10px 0}
+
+.quoteGrid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+
+.table{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:12px}
+.table th,.table td{padding:8px 6px;border-bottom:1px solid rgba(255,255,255,.08);text-align:left}
+.table th{color:var(--muted);font-weight:600}
+
+.flash{padding:10px 12px;border-radius:12px;border:1px solid var(--border);background:rgba(0,0,0,.16)}
+.flash.ok{border-color:rgba(52,211,153,.5)}
+.flash.bad{border-color:rgba(251,113,133,.5)}
+
+hr{border:none;border-top:1px solid rgba(255,255,255,.08);margin:14px 0}
+
+.footerNote{margin-top:14px;color:var(--muted);font-size:12px}
