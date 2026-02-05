@@ -74,8 +74,11 @@ function hardReset() {
       stopGame();
       return;
     }
-    render();
+    // Do NOT re-render the whole app on a timer tick.
+    // Re-rendering replaces the DOM and breaks typing/focus in inputs.
+    updateHUD();
   }, 250);
+  updateHUD();
 }
 
 function stopGame() {
@@ -93,16 +96,32 @@ function mmss(sec: number) {
   return `${m}:${String(s).padStart(2, '0')}`;
 }
 
+function updateHUD() {
+  const $timer = document.querySelector<HTMLElement>('#hud-timer');
+  const $inv = document.querySelector<HTMLElement>('#hud-inv');
+  const $pnl = document.querySelector<HTMLElement>('#hud-pnl');
+  const $rounds = document.querySelector<HTMLElement>('#hud-rounds');
+
+  if ($timer) $timer.textContent = mmss(tLeft);
+  if ($rounds) $rounds.textContent = String(rounds.length);
+
+  if (engine && curScenario) {
+    const pnl = engine.pnl(curScenario.trueValue);
+    if ($inv) $inv.textContent = String(pnl.inv);
+    if ($pnl) $pnl.textContent = fmt(pnl.riskAdj);
+  }
+}
+
 function headerBadges() {
   const pnl = engine && curScenario ? engine.pnl(curScenario.trueValue) : null;
   const mtm = pnl ? pnl.riskAdj : 0;
   const inv = pnl ? pnl.inv : 0;
   return `
     <div class="badges">
-      <div class="badge"><strong>Timer</strong> ${mmss(tLeft)}</div>
-      <div class="badge"><strong>Inv</strong> ${inv}</div>
-      <div class="badge"><strong>Risk-Adj PnL</strong> ${fmt(mtm)}</div>
-      <div class="badge"><strong>Rounds</strong> ${rounds.length}</div>
+      <div class="badge"><strong>Timer</strong> <span id="hud-timer">${mmss(tLeft)}</span></div>
+      <div class="badge"><strong>Inv</strong> <span id="hud-inv">${inv}</span></div>
+      <div class="badge"><strong>Risk-Adj PnL</strong> <span id="hud-pnl">${fmt(mtm)}</span></div>
+      <div class="badge"><strong>Rounds</strong> <span id="hud-rounds">${rounds.length}</span></div>
     </div>
   `;
 }
