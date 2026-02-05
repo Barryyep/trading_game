@@ -11,6 +11,12 @@ A small, clean-room **market making practice game** inspired by common "Make me 
 
 This is a toy for interview practice. Not financial advice.
 
+## Live (GitHub Pages)
+
+After you enable Pages (see below), your site will be at:
+
+- https://barryyep.github.io/trading_game/
+
 ## Run locally
 
 ```bash
@@ -26,6 +32,14 @@ Then open the local URL printed by Vite.
 npm run build
 npm run preview
 ```
+
+## Enable GitHub Pages (one-time)
+
+1. Go to repo settings: https://github.com/Barryyep/trading_game/settings/pages
+2. Under **Build and deployment**:
+   - Source: **GitHub Actions**
+
+After that, every push to `main` will auto-deploy.
 
 ## Notes
 

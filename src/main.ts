@@ -39,6 +39,8 @@ let settings: Settings = {
   percentSpread: 0.05,
   inventoryLimit: 10,
   riskAversion: 1.0,
+  invSkew: 0.35,
+  spreadWiden: 0.6,
   seed: todaySeed()
 };
 
@@ -172,6 +174,19 @@ function welcomeScreen() {
           <div class="label">Risk Aversion (inventory penalty)</div>
           <input id="risk" type="number" min="0" step="0.1" value="${settings.riskAversion}" />
 
+          <div class="row" style="gap:12px; margin-top:10px">
+            <div style="flex:1">
+              <div class="label">Inventory Skew</div>
+              <input id="invSkew" type="number" min="0" step="0.05" value="${settings.invSkew}" />
+              <div class="small">Higher = auto-quote shifts mid to reduce inventory faster.</div>
+            </div>
+            <div style="flex:1">
+              <div class="label">Spread Widen</div>
+              <input id="spreadWiden" type="number" min="0" step="0.1" value="${settings.spreadWiden}" />
+              <div class="small">Higher = spreads widen as |inventory| grows.</div>
+            </div>
+          </div>
+
           <div class="row" style="margin-top:14px">
             <button class="btn primary" id="start">Start Game</button>
           </div>
@@ -253,6 +268,7 @@ function playScreen() {
             <div class="small">Cash: <b>${fmt(pnl.cash)}</b> • Inventory: <b>${pnl.inv}</b></div>
             <div class="small">Mark: <b>${fmt(curScenario.trueValue)}</b> ${curScenario.unit}</div>
             <div class="small">MTM: <b>${fmt(pnl.mtm)}</b> • Risk-Adj: <b>${fmt(pnl.riskAdj)}</b></div>
+            <div class="small">Break-even (flat): <b>${engine.breakEven() == null ? '—' : fmt(engine.breakEven()!)}</b></div>
           </div>
 
           <hr />
@@ -373,6 +389,8 @@ function bindWelcome() {
   const $predef = document.querySelector<HTMLInputElement>('#predef');
   const $pct = document.querySelector<HTMLInputElement>('#pct');
   const $risk = document.querySelector<HTMLInputElement>('#risk');
+  const $invSkew = document.querySelector<HTMLInputElement>('#invSkew');
+  const $spreadWiden = document.querySelector<HTMLInputElement>('#spreadWiden');
 
   const apply = () => {
     settings.durationSec = Number($duration?.value ?? 600);
@@ -380,6 +398,8 @@ function bindWelcome() {
     settings.predefinedSpread = Math.max(1e-6, Number($predef?.value ?? 10));
     settings.percentSpread = Math.max(0.001, Number($pct?.value ?? 0.05));
     settings.riskAversion = Math.max(0, Number($risk?.value ?? 1));
+    settings.invSkew = Math.max(0, Number($invSkew?.value ?? 0.35));
+    settings.spreadWiden = Math.max(0, Number($spreadWiden?.value ?? 0.6));
 
     const spreadType = document.querySelector<HTMLInputElement>('input[name="spreadType"]:checked')?.value;
     settings.spreadType = spreadType === 'percent' ? 'percent' : 'predefined';
@@ -392,7 +412,7 @@ function bindWelcome() {
     });
   });
 
-  [$duration, $inv, $predef, $pct, $risk].forEach(el => el?.addEventListener('change', apply));
+  [$duration, $inv, $predef, $pct, $risk, $invSkew, $spreadWiden].forEach(el => el?.addEventListener('change', apply));
 
   document.querySelector<HTMLButtonElement>('#reset-seed')?.addEventListener('click', () => {
     settings.seed = Math.floor(Math.random() * 1e9);

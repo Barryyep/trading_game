@@ -9,6 +9,8 @@ export type Settings = {
   percentSpread: number; // as fraction, e.g. 0.05 = 5%
   inventoryLimit: number;
   riskAversion: number; // penalize inventory mark-to-market variability
+  invSkew: number; // inventory-based mid shift (in spread widths)
+  spreadWiden: number; // widen spreads as |inv| grows (multiplier)
   seed?: number;
 };
 
@@ -151,13 +153,35 @@ export class MarketMakingEngine {
     };
   }
 
-  // Helper to suggest default bid/ask around an estimate.
+  // Estimate-aware, inventory-aware default quote.
+  // - Mid is skewed to reduce inventory: long inventory shifts mid down, short shifts up.
+  // - Spread widens with |inventory|.
   defaultQuote(estimate: number) {
-    if (this.settings.spreadType === 'percent') {
-      const half = Math.max(estimate * this.settings.percentSpread * 0.5, 1e-6);
-      return { bid: Math.max(1e-6, estimate - half), ask: estimate + half };
-    }
-    const half = Math.max(this.settings.predefinedSpread * 0.5, 1e-6);
-    return { bid: Math.max(1e-6, estimate - half), ask: estimate + half };
+    const inv = this.state.inv;
+    const invLimit = Math.max(1, this.settings.inventoryLimit);
+    const invNorm = clamp(inv / invLimit, -1, 1);
+
+    const baseHalf = this.settings.spreadType === 'percent'
+      ? Math.max(estimate * this.settings.percentSpread * 0.5, 1e-6)
+      : Math.max(this.settings.predefinedSpread * 0.5, 1e-6);
+
+    const widen = 1 + this.settings.spreadWiden * Math.abs(invNorm);
+    const half = baseHalf * widen;
+
+    // mid shift in units of half-spread
+    const midShift = -this.settings.invSkew * invNorm * half;
+    const mid = estimate + midShift;
+
+    return {
+      bid: Math.max(1e-6, mid - half),
+      ask: mid + half,
+    };
+  }
+
+  // Break-even (mark) to flatten current inventory.
+  // If inv != 0, BE = -cash / inv.
+  breakEven() {
+    if (this.state.inv === 0) return null;
+    return -this.state.cash / this.state.inv;
   }
 }
