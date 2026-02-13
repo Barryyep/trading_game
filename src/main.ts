@@ -2,7 +2,7 @@ import './style.css';
 import { scenarios, type Scenario } from './scenarios';
 import { MarketMakingEngine, type Settings, type Quote, type Fill } from './engine';
 
-type Screen = 'welcome' | 'play' | 'end';
+type Screen = 'welcome' | 'play' | 'odds' | 'end';
 
 type Round = {
   scenario: Scenario;
@@ -131,29 +131,31 @@ function welcomeScreen() {
   <div class="container">
     <div class="header">
       <div class="brand">
-        <h1>Make Me a Market — Trading Game</h1>
-        <p>Practice market making: quote a bid/ask, manage inventory, and survive the timer.</p>
+        <h1>Trading Interview Games (Practice)</h1>
+        <p>Market making + odds games for interview-style training.</p>
       </div>
       ${headerBadges()}
     </div>
 
     <div class="grid">
       <section class="panel">
-        <div class="panel-h"><h2>Instructions</h2><span class="kbd">Enter</span></div>
+        <div class="panel-h"><h2>Choose a mode</h2><span class="kbd">Enter</span></div>
         <div class="panel-b">
-          <ol class="small">
-            <li>Each round shows a <b>fact / guesstimate</b> scenario with a unit.</li>
-            <li>You provide an estimate, then quote <b>bid</b> and <b>ask</b>.</li>
-            <li>A simulated customer may trade with you. Your position updates.</li>
-            <li>PnL is marked to an internal “true value” for the scenario (approximate).</li>
-            <li>Try to earn spread without blowing up inventory.</li>
-          </ol>
-          <div class="footerNote">This is a clean-room practice toy (not financial advice).</div>
+          <div class="row">
+            <button class="btn primary" id="start">Market Making</button>
+            <button class="btn" id="start-odds">Odds Game (Dice/Cards/Coins)</button>
+          </div>
+          <hr />
+          <div class="small">
+            <b>Market Making</b>: quote bid/ask for a prompt, manage inventory, earn spread.
+            <br />
+            <b>Odds Game</b>: you get events + odds, you choose bet sizes, and your balance evolves round-by-round.
+          </div>
         </div>
       </section>
 
       <aside class="panel">
-        <div class="panel-h"><h2>Settings</h2><button class="btn" id="reset-seed">New Seed</button></div>
+        <div class="panel-h"><h2>Market Making Settings</h2><button class="btn" id="reset-seed">New Seed</button></div>
         <div class="panel-b">
           <div class="row" style="gap:12px">
             <div style="flex:1">
@@ -206,11 +208,8 @@ function welcomeScreen() {
             </div>
           </div>
 
-          <div class="row" style="margin-top:14px">
-            <button class="btn primary" id="start">Start Game</button>
-          </div>
           <div class="small" style="margin-top:10px">
-            Tip: Keep spreads consistent and size your risk. Use <span class="kbd">Enter</span> to submit.
+            Tip: Use <span class="kbd">Enter</span> to submit a quote during play.
           </div>
         </div>
       </aside>
@@ -337,6 +336,279 @@ function renderLast(last: Round) {
   `;
 }
 
+// ---------------- Odds game (Dice/Cards/Coins) ----------------
+
+type Bet = {
+  id: string;
+  title: string;
+  oddsTo1: number; // payout odds: e.g. 3.5 means win gets stake*3.5 profit
+  pWin: number; // true probability
+  resolve: () => boolean;
+};
+
+type OddsState = {
+  balance: number;
+  round: number;
+  tEnd: number;
+  tLeft: number;
+  lastMsg: string | null;
+  bets: { dice: Bet[]; cards: Bet[]; coins: Bet[] };
+};
+
+let odds: OddsState | null = null;
+
+function fairOddsTo1(p: number) {
+  // fair odds-to-1 for a binary bet with prob p (ignoring tie): (1-p)/p
+  return (1 - p) / Math.max(1e-9, p);
+}
+
+function withHouseEdge(oddsTo1: number, edge = 0.06) {
+  // reduce payout by edge (house edge)
+  return Math.max(0.01, oddsTo1 * (1 - edge));
+}
+
+function mkBet(id: string, title: string, pWin: number, resolver: () => boolean) {
+  const fair = fairOddsTo1(pWin);
+  const offered = withHouseEdge(fair, 0.08);
+  // Round to 2 decimals like common UIs
+  const oddsTo1 = Math.round(offered * 100) / 100;
+  return { id, title, oddsTo1, pWin, resolve: resolver } as Bet;
+}
+
+function startOddsGame() {
+  const durationSec = 600;
+  const tEndLocal = Date.now() + durationSec * 1000;
+
+  const rollDie = () => 1 + Math.floor(Math.random() * 6);
+  const flipCoin = () => (Math.random() < 0.5 ? 'H' : 'T');
+
+  // Build a fresh set each round (like “?” icons in your screenshot)
+  const buildBets = () => {
+    // Dice
+    const diceA = mkBet(
+      'dice-even-even',
+      'Both dice show even numbers',
+      (3 / 6) * (3 / 6),
+      () => {
+        const d1 = rollDie();
+        const d2 = rollDie();
+        return d1 % 2 === 0 && d2 % 2 === 0;
+      }
+    );
+    const primes = new Set([2, 3, 5, 7, 11]);
+    const diceB = mkBet(
+      'dice-prime-sum',
+      'Sum of dice is a prime number (2,3,5,7,11)',
+      15 / 36,
+      () => primes.has(rollDie() + rollDie())
+    );
+
+    // Cards (2-card draw without replacement from standard 52)
+    const draw2 = () => {
+      const ranks = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'] as const;
+      type Rank = (typeof ranks)[number];
+      type Card = { rank: Rank; suit: 'S' | 'H' | 'D' | 'C' };
+      const deck: Card[] = [];
+      for (const suit of ['S', 'H', 'D', 'C'] as const) {
+        for (const rank of ranks) deck.push({ rank, suit });
+      }
+      // pick 2
+      const i1 = Math.floor(Math.random() * deck.length);
+      const c1 = deck.splice(i1, 1)[0];
+      const i2 = Math.floor(Math.random() * deck.length);
+      const c2 = deck.splice(i2, 1)[0];
+      return [c1, c2] as const;
+    };
+
+    const cardsA = mkBet(
+      'cards-face',
+      'If I draw 2 cards, at least one is a face card (J,Q,K)',
+      1 - ((40 / 52) * (39 / 51)),
+      () => {
+        const [c1, c2] = draw2();
+        const face = new Set(['J', 'Q', 'K']);
+        return face.has(c1.rank) || face.has(c2.rank);
+      }
+    );
+
+    const cardsB = mkBet(
+      'cards-none-red',
+      'If I draw 2 cards, none of them is red',
+      (26 / 52) * (25 / 51),
+      () => {
+        const [c1, c2] = draw2();
+        const isRed = (s: string) => s === 'H' || s === 'D';
+        return !isRed(c1.suit) && !isRed(c2.suit);
+      }
+    );
+
+    // Coins
+    const coinsA = mkBet(
+      'coins-more-heads',
+      'More coins show heads than tails (3 flips)',
+      0.5,
+      () => {
+        const flips = [flipCoin(), flipCoin(), flipCoin()];
+        const h = flips.filter(x => x === 'H').length;
+        return h >= 2;
+      }
+    );
+
+    const coinsB = mkBet(
+      'coins-first-heads',
+      'First coin shows heads',
+      0.5,
+      () => flipCoin() === 'H'
+    );
+
+    return { dice: [diceA, diceB], cards: [cardsA, cardsB], coins: [coinsA, coinsB] };
+  };
+
+  odds = {
+    balance: 1000,
+    round: 1,
+    tEnd: tEndLocal,
+    tLeft: durationSec,
+    lastMsg: null,
+    bets: buildBets(),
+  };
+
+  // timer for odds game (only updates small HUD text)
+  if (timerHandle) window.clearInterval(timerHandle);
+  timerHandle = window.setInterval(() => {
+    if (!odds) return;
+    const ms = odds.tEnd - Date.now();
+    odds.tLeft = Math.max(0, Math.ceil(ms / 1000));
+    if (odds.tLeft <= 0) {
+      screen = 'end';
+      render();
+      return;
+    }
+    const $t = document.querySelector<HTMLElement>('#odds-timer');
+    if ($t) $t.textContent = mmss(odds.tLeft);
+  }, 250);
+}
+
+function oddsScreen() {
+  if (!odds) return '';
+
+  const card = (title: string, bets: Bet[], key: 'dice' | 'cards' | 'coins') => {
+    const rows = bets
+      .map((b) => {
+        return `
+          <div class="flash" style="margin-bottom:10px">
+            <div class="row" style="justify-content:space-between; align-items:flex-start">
+              <div style="flex:1; padding-right:10px">
+                <div style="font-weight:700; margin-bottom:6px">${b.title}</div>
+                <div class="small" style="opacity:.9">Odds <b>${b.oddsTo1}:1</b></div>
+              </div>
+              <div style="width:160px">
+                <input type="number" min="0" step="1" value="10" id="stake-${b.id}" />
+                <button class="btn primary" style="width:100%; margin-top:8px" data-take="${b.id}" data-group="${key}">Take</button>
+              </div>
+            </div>
+          </div>
+        `;
+      })
+      .join('');
+
+    return `
+      <section class="panel">
+        <div class="panel-h"><h2>${title}</h2><span class="small">?</span></div>
+        <div class="panel-b">${rows}</div>
+      </section>
+    `;
+  };
+
+  return `
+    <div class="container">
+      <div class="header">
+        <div class="brand">
+          <h1>Odds Game</h1>
+          <p>Bet sizing + implied odds. Keep your balance alive.</p>
+        </div>
+        <div class="badges">
+          <div class="badge"><strong>Time</strong> <span id="odds-timer">${mmss(odds.tLeft)}</span></div>
+          <div class="badge"><strong>Balance</strong> ${fmt(odds.balance)}</div>
+          <div class="badge"><strong>Round</strong> ${odds.round}</div>
+        </div>
+      </div>
+
+      <div class="row" style="justify-content:space-between; margin-top:12px">
+        <button class="btn" id="back">Back</button>
+        <button class="btn primary" id="next-round">Next Round</button>
+      </div>
+
+      ${odds.lastMsg ? `<div class="flash" style="margin-top:12px">${odds.lastMsg}</div>` : ''}
+
+      <div class="grid" style="grid-template-columns: 1fr 1fr 1fr; margin-top:12px">
+        ${card('Dice', odds.bets.dice, 'dice')}
+        ${card('Cards', odds.bets.cards, 'cards')}
+        ${card('Coins', odds.bets.coins, 'coins')}
+      </div>
+    </div>
+  `;
+}
+
+function bindOdds() {
+  if (!odds) return;
+
+  document.querySelector<HTMLButtonElement>('#back')?.addEventListener('click', () => {
+    if (timerHandle) {
+      window.clearInterval(timerHandle);
+      timerHandle = null;
+    }
+    odds = null;
+    screen = 'welcome';
+    render();
+  });
+
+  const takeButtons = document.querySelectorAll<HTMLButtonElement>('button[data-take]');
+  takeButtons.forEach((btn) => {
+    btn.addEventListener('click', () => {
+      if (!odds) return;
+      const id = btn.dataset.take!;
+      const group = btn.dataset.group as 'dice' | 'cards' | 'coins';
+      const bet = odds.bets[group].find((b) => b.id === id);
+      if (!bet) return;
+      const $stake = document.querySelector<HTMLInputElement>(`#stake-${id}`);
+      const stake = Math.floor(Number($stake?.value ?? 0));
+      if (!Number.isFinite(stake) || stake <= 0) return alert('Stake must be > 0');
+      if (stake > odds.balance) return alert('Not enough balance');
+
+      const win = bet.resolve();
+      const profit = win ? stake * bet.oddsTo1 : -stake;
+      odds.balance += profit;
+      odds.lastMsg = win
+        ? `✅ WIN: +${fmt(profit)} (stake ${stake}, odds ${bet.oddsTo1}:1)`
+        : `❌ LOSS: ${fmt(profit)} (stake ${stake})`;
+
+      // Update quickly by re-rendering odds screen once (safe; not on timer)
+      render();
+    });
+  });
+
+  // Fix Next Round: rebuild bets without resetting balance/round/time.
+  document.querySelector<HTMLButtonElement>('#next-round')?.addEventListener('click', () => {
+    if (!odds) return;
+    // keep time running
+    odds.round += 1;
+    // rebuild bets by calling startOddsGame logic via a small inline rebuild
+    // (duplicate minimal bet builder by restarting then restoring state)
+    const keep = { balance: odds.balance, round: odds.round, tEnd: odds.tEnd, tLeft: odds.tLeft };
+    startOddsGame();
+    if (!odds) return;
+    odds.balance = keep.balance;
+    odds.round = keep.round;
+    odds.tEnd = keep.tEnd;
+    odds.tLeft = keep.tLeft;
+    odds.lastMsg = null;
+    render();
+  });
+}
+
+// --------------------------------------------------------------
+
 function endScreen() {
   const lastScenario = rounds.at(-1)?.scenario;
   const mark = lastScenario?.trueValue ?? 0;
@@ -442,6 +714,12 @@ function bindWelcome() {
     apply();
     screen = 'play';
     hardReset();
+    render();
+  });
+
+  document.querySelector<HTMLButtonElement>('#start-odds')?.addEventListener('click', () => {
+    screen = 'odds';
+    startOddsGame();
     render();
   });
 }
